@@ -1,35 +1,31 @@
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
-
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import joblib
+import json
+from sklearn.feature_extraction.text import CountVectorizer
 
 app = FastAPI()
 
+# Load the trained model
+model = joblib.load('naive_bayes_model.joblib')
 
-class Item(BaseModel):
-    item_id: int
+# Load the vocabulary
+with open('vocabulary.json', 'r') as vocab_file:
+    vocabulary = json.load(vocab_file)
 
+# Define request body model
+class TextData(BaseModel):
+    text: str
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
+# Function to vectorize new data
+def vectorize_text(text):
+    vectorizer = CountVectorizer(vocabulary=vocabulary)
+    return vectorizer.transform([text])
 
+@app.post("/predict/")
+def predict(text_data: TextData):
+    text = text_data.text
+    text_vectorized = vectorize_text(text)
+    prediction = model.predict(text_vectorized)
+    return {"category": prediction[0]}
 
-@app.get('/favicon.ico', include_in_schema=False)
-async def favicon():
-    return FileResponse('favicon.ico')
-
-
-@app.get("/item/{item_id}")
-async def read_item(item_id: int):
-    return {"item_id": item_id}
-
-
-@app.get("/items/")
-async def list_items():
-    return [{"item_id": 1, "name": "Foo"}, {"item_id": 2, "name": "Bar"}]
-
-
-@app.post("/items/")
-async def create_item(item: Item):
-    return item
